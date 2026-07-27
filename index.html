@@ -12,9 +12,14 @@
     <main class="app-shell">
       <header class="topbar">
         <a class="brand" href="/" aria-label="Racewall home">
-          <span class="brand-mark">R</span>
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
           <span>RACEWALL</span>
         </a>
+        <nav class="primary-nav" aria-label="Primary navigation">
+          <a class="active" href="#timing-tower">TIMING</a>
+          <a href="#race-pulse">REPLAY</a>
+          <a href="#race-control">CONTROL</a>
+        </nav>
         <div class="session-picker">
           <label for="session-select">Session</label>
           <select id="session-select" aria-label="Choose an F1 session"></select>
@@ -28,7 +33,7 @@
 
       <section class="hero" aria-labelledby="meeting-name">
         <div>
-          <p class="eyebrow" id="session-name">LOADING SESSION</p>
+          <p class="eyebrow"><span class="live-tag">SESSION</span><span id="session-name">LOADING SESSION</span></p>
           <h1 id="meeting-name">Preparing the timing wall</h1>
           <p class="location" id="meeting-location">OpenF1 historical data</p>
         </div>
@@ -71,7 +76,7 @@
             <p class="panel-note">NEON BAR = PROXIMITY TO LEADER</p>
           </div>
           <div class="demo-replay" aria-label="Demo position chart: McLaren takes the lead from Red Bull on lap 15, and Ferrari moves into second.">
-            <div class="demo-heading"><span class="demo-live-dot"></span><strong>DEMO RACE REPLAY</strong><span id="demo-lap">LAP 13 / 18</span><div class="speed-controls" aria-label="Replay speed"><button class="speed-button active" data-speed="1">1×</button><button class="speed-button" data-speed="2">2×</button><button class="speed-button" data-speed="3">3×</button></div></div>
+            <div class="demo-heading"><span class="demo-live-dot"></span><strong>DEMO RACE REPLAY</strong><span id="demo-lap">LAP 13 / 18</span><div class="speed-controls" aria-label="Replay speed"><button class="speed-button active" data-speed="1">1×</button><button class="speed-button" data-speed="2">2×</button><button class="speed-button" data-speed="3">3×</button><a href="index.html?full=1" style="margin-left:5px;color:#fff;font-size:9px;font-weight:800">FULL VIEW ↗</a></div></div>
             <div class="track-stage">
               <div class="track-label start-label">START / FINISH</div>
               <div class="track-label drs-label">DRS ZONE</div>

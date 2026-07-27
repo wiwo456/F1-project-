@@ -4,10 +4,12 @@ let demoSpeed = 1;
 const SIM_GRID = [
   ['NOR','McLaren','FF8700'],['PIA','McLaren','FF8700'],['RUS','Mercedes','27F4D2'],['ANT','Mercedes','27F4D2'],['VER','Red Bull Racing','3671C6'],['HAD','Red Bull Racing','3671C6'],['LEC','Ferrari','FF2443'],['HAM','Ferrari','FF2443'],['ALB','Williams','1868DB'],['SAI','Williams','1868DB'],['LAW','Racing Bulls','7192FF'],['LIN','Racing Bulls','7192FF'],['ALO','Aston Martin','229971'],['STR','Aston Martin','229971'],['OCO','Haas','B6BABD'],['BEA','Haas','B6BABD'],['HUL','Audi','F24B22'],['BOR','Audi','F24B22'],['GAS','Alpine','E878C8'],['COL','Alpine','E878C8'],['BOT','Cadillac','C6C6C6'],['PER','Cadillac','C6C6C6']
 ].map(([name, team, colour], index) => ({ driver_number:index + 1, name_acronym:name, team_name:team, team_colour:colour }));
+const CAR_SPRITES = { McLaren:'mclaren', Mercedes:'mercedes', 'Red Bull Racing':'red-bull', Ferrari:'ferrari', Williams:'williams', 'Racing Bulls':'racing-bulls', 'Aston Martin':'aston-martin', Haas:'haas', Audi:'audi', Alpine:'alpine', Cadillac:'cadillac' };
 let simulation = null;
 let demoCars = [];
 let demoRoute = null;
 const $ = (id) => document.getElementById(id);
+if (new URLSearchParams(location.search).has('full')) document.body.classList.add('full-mode');
 
 async function get(endpoint) {
   const response = await fetch(`${API}/${endpoint}`);
@@ -137,7 +139,8 @@ function startDemoRace() {
   const cars = SIM_GRID.map((driver, index) => {
     const element = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     element.setAttribute('class', 'demo-car');
-    element.innerHTML = `<rect x="-6" y="-3" width="12" height="6" rx="2" fill="#${driver.team_colour}" style="filter:drop-shadow(0 0 3px #${driver.team_colour})"/><circle cx="-3.5" cy="4" r="1.6"/><circle cx="3.5" cy="6" r="1.6"/><text x="8" y="-5" fill="#${driver.team_colour}" style="font:700 8px Inter,sans-serif;paint-order:stroke;stroke:#080c13;stroke-width:2px">${driver.name_acronym}</text>`;
+    const sprite = CAR_SPRITES[driver.team_name];
+    element.innerHTML = `<image href="assets/cars/${sprite}-sprite.png" x="-24" y="-12" width="48" height="24" preserveAspectRatio="xMidYMid meet"/><text x="19" y="-10" fill="#${driver.team_colour}" style="font:700 8px Inter,sans-serif;paint-order:stroke;stroke:#080c13;stroke-width:2px">${driver.name_acronym}</text>`;
     carLayer.append(element);
     return { driver, element, distance: 190 - index * 10, totalDistance:190 - index * 10, pace:7.3 + Math.random() * .7, target:null, trackVelocity:0 };
   });
