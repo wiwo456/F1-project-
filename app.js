@@ -8,6 +8,7 @@ const CAR_SPRITES = { McLaren:'mclaren', Mercedes:'mercedes', 'Red Bull Racing':
 let simulation = null;
 let demoCars = [];
 let demoRoute = null;
+const PIT_DRIVERS = new Set(['VER', 'LEC']);
 const $ = (id) => document.getElementById(id);
 if (new URLSearchParams(location.search).has('full')) document.body.classList.add('full-mode');
 
@@ -142,7 +143,7 @@ function startDemoRace() {
     const sprite = CAR_SPRITES[driver.team_name];
     element.innerHTML = `<image href="assets/cars/${sprite}-sprite.png" x="-24" y="-12" width="48" height="24" preserveAspectRatio="xMidYMid meet"/><text x="19" y="-10" fill="#${driver.team_colour}" style="font:700 8px Inter,sans-serif;paint-order:stroke;stroke:#080c13;stroke-width:2px">${driver.name_acronym}</text>`;
     carLayer.append(element);
-    return { driver, element, distance: 190 - index * 10, totalDistance:190 - index * 10, pace:7.3 + Math.random() * .7, target:null, trackVelocity:0 };
+    return { driver, element, distance: 190 - index * 10, totalDistance:190 - index * 10, pace:7.3 + Math.random() * .7, target:null, trackVelocity:0, pit:null, pitDue: driver.name_acronym === 'VER' ? 9 : driver.name_acronym === 'LEC' ? 18 : Infinity };
   });
   demoCars = cars;
   const routeLength = route.getTotalLength();
@@ -157,6 +158,25 @@ function startDemoRace() {
     if (!simulation) { cars[0].pace += phase > 8 && phase < 14 ? 8 : 0; cars[4].pace += phase < 8 ? 7 : 2; cars[6].pace += phase > 13 ? 9 : 0; }
     for (const car of cars) {
       const target = simulation?.track.get(car.driver.driver_number);
+      const activePit = cars.some((item) => item.pit);
+      if (!car.pit && PIT_DRIVERS.has(car.driver.name_acronym) && replayTime >= car.pitDue && !activePit) {
+        car.pit = { started: replayTime, duration: 1.7 + Math.random() * .5 };
+        car.pitDue = replayTime + 42;
+        registerPitStop(car, car.pit.duration);
+      }
+      if (car.pit) {
+        const elapsed = replayTime - car.pit.started;
+        const entry = 1.15, total = entry + car.pit.duration + 1.15;
+        let progress = elapsed < entry ? elapsed / entry * .5 : elapsed < entry + car.pit.duration ? .5 : .5 + ((elapsed - entry - car.pit.duration) / 1.15) * .5;
+        progress = Math.max(0, Math.min(1, progress));
+        const pitPath = $('demo-track').querySelector('.pit-route');
+        const pitPoint = pitPath.getPointAtLength(pitPath.getTotalLength() * progress);
+        const pitAhead = pitPath.getPointAtLength(Math.min(pitPath.getTotalLength(), pitPath.getTotalLength() * progress + 2));
+        const pitAngle = Math.atan2(pitAhead.y - pitPoint.y, pitAhead.x - pitPoint.x) * 180 / Math.PI;
+        car.element.setAttribute('transform', `translate(${pitPoint.x} ${pitPoint.y}) rotate(${pitAngle})`);
+        if (elapsed >= total) { car.pit = null; car.distance = 115; car.target = null; }
+        continue;
+      }
       if (target == null) car.distance = (car.distance + car.pace * delta) % 1000;
       else {
         if (car.target !== target) {
@@ -177,6 +197,18 @@ function startDemoRace() {
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
+}
+
+function registerPitStop(car, duration) {
+  const driver = car.driver;
+  const stop = { date:new Date().toISOString(), driver_number:driver.driver_number, lap_number:simulation?.lap || '—', stop_duration:+duration.toFixed(1) };
+  if (simulation) {
+    simulation.pits.unshift(stop);
+    simulation.control.unshift({ date:stop.date, category:'Race Control', flag:'PIT', message:`${driver.name_acronym} ENTERS THE PIT LANE` });
+    renderPit(simulation.pits);
+    renderControl(simulation.control);
+  }
+  $('demo-commentary').innerHTML = `<span><b style="background:#${driver.team_colour}"></b>${driver.name_acronym} is in the pit lane</span><span class="demo-speed">STOPPING FOR ${stop.stop_duration.toFixed(1)} SECONDS</span>`;
 }
 startDemoRace();
 document.querySelectorAll('.speed-button').forEach((button) => {
@@ -204,7 +236,6 @@ function startSimulator() {
     const overtaker = movedIndex > 0 ? sim.order[movedIndex] : null;
     const overtaken = movedIndex > 0 ? previousOrder[movedIndex - 1] : null;
     if (overtaker) sim.overtakes.unshift({ date:new Date().toISOString(), overtaking_driver_number:overtaker, overtaken_driver_number:overtaken, position:movedIndex + 1 });
-    if (Math.random() < .32) { const driver = sim.order[8 + Math.floor(Math.random() * 14)]; sim.pits.unshift({ date:new Date().toISOString(), driver_number:driver, lap_number:sim.lap, stop_duration:1.9 + Math.random() * .8 }); }
     if (overtaker) sim.control.unshift({ date:new Date().toISOString(), category:'Race Control', flag:'GREEN', message:`CAR ${state.drivers.get(overtaker).name_acronym} OVERTAKES ${state.drivers.get(overtaken).name_acronym} FOR P${movedIndex + 1}` });
     const positions = sim.order.map((driver_number, index) => ({ driver_number, position:index + 1, date:new Date().toISOString() }));
     positions.forEach((item, index) => sim.track.set(item.driver_number, (210 + sim.lap * 55 - index * 13 + 1000) % 1000));
