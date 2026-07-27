@@ -1,5 +1,6 @@
 const API = 'https://api.openf1.org/v1';
 const state = { sessions: [], session: null, drivers: new Map() };
+let demoSpeed = 1;
 const $ = (id) => document.getElementById(id);
 
 async function get(endpoint) {
@@ -45,6 +46,7 @@ async function loadSession(sessionKey) {
     ]);
     state.drivers = new Map(drivers.map(driver => [driver.driver_number, driver]));
     renderTower(positions, stints, intervals);
+    renderRacePulse(positions, intervals, laps, overtakes);
     renderWeather(weather); renderPit(pit); renderOvertakes(overtakes); renderControl(control); renderLap(laps);
     $('status-text').textContent = 'CONNECTED';
     document.querySelector('.status-dot').style.background = '#3ee68b';
@@ -79,6 +81,37 @@ function renderWeather(items) {
   const values = [['AIR',`${weather.air_temperature?.toFixed(1) ?? '—'}°C`],['TRACK',`${weather.track_temperature?.toFixed(1) ?? '—'}°C`],['RAIN',weather.rainfall ? 'YES' : 'NO'],['WIND',`${weather.wind_speed?.toFixed(1) ?? '—'} km/h`]];
   $('weather-grid').innerHTML = values.map(([label,value]) => `<div class="weather-item"><span>${label}</span><strong>${value}</strong></div>`).join('');
 }
+function renderRacePulse(positions, intervals, laps, overtakes) {
+  const order = uniqueLatest(positions, 'driver_number').sort((a, b) => a.position - b.position);
+  const intervalMap = new Map(uniqueLatest(intervals, 'driver_number').map(item => [item.driver_number, item]));
+  const speedMap = new Map();
+  for (const lap of laps) {
+    const speed = Math.max(lap.st_speed || 0, lap.i1_speed || 0, lap.i2_speed || 0);
+    if (speed > (speedMap.get(lap.driver_number) || 0)) speedMap.set(lap.driver_number, speed);
+  }
+  const passMap = new Map();
+  for (const pass of overtakes) passMap.set(pass.overtaking_driver_number, (passMap.get(pass.overtaking_driver_number) || 0) + 1);
+  const numericGaps = order.map(item => Number(intervalMap.get(item.driver_number)?.gap_to_leader)).filter(Number.isFinite);
+  const largestGap = Math.max(...numericGaps, 1);
+  if (!order.length) return empty('race-pulse');
+  $('race-pulse').innerHTML = order.slice(0, 12).map((item) => {
+    const driver = state.drivers.get(item.driver_number) || {};
+    const interval = intervalMap.get(item.driver_number) || {};
+    const gap = Number(interval.gap_to_leader);
+    const percentage = item.position === 1 ? 100 : Number.isFinite(gap) ? Math.max(8, 100 - (gap / largestGap * 88)) : 8;
+    const close = Number(interval.interval);
+    const intervalLabel = item.position === 1 ? 'LEADER' : Number.isFinite(close) ? `+${close.toFixed(3)}` : '—';
+    const gapLabel = item.position === 1 ? 'ON POINT' : Number.isFinite(gap) ? `+${gap.toFixed(3)}` : '—';
+    const colour = `#${driver.team_colour || '65748a'}`;
+    return `<div class="pulse-row">
+      <div class="pulse-driver"><span class="team-mark" style="background:${colour}"></span><div><strong>P${item.position} ${escapeHtml(driver.name_acronym || `CAR ${item.driver_number}`)}</strong><small>${escapeHtml(driver.team_name || '')}</small></div></div>
+      <div class="neon-track" title="${gapLabel} to leader"><div class="neon-bar" style="width:${percentage}%;background:${colour};color:${colour}"></div></div>
+      <div class="pulse-value muted">${intervalLabel}</div>
+      <div class="pulse-value">${speedMap.get(item.driver_number) ? `${speedMap.get(item.driver_number)} <small>KM/H</small>` : '—'}</div>
+      <div class="pulse-value pass-count passes-column">+${passMap.get(item.driver_number) || 0}</div>
+    </div>`;
+  }).join('');
+}
 function driverName(number) { return state.drivers.get(number)?.name_acronym || `CAR ${number}`; }
 function renderPit(items) { const stops = [...items].sort((a,b) => new Date(b.date)-new Date(a.date)).slice(0,5); $('pit-count').textContent=`${items.length} STOP${items.length===1?'':'S'}`; if (!stops.length) return empty('pit-stops'); $('pit-stops').innerHTML=stops.map(p=>`<div class="event"><span class="event-badge">L${p.lap_number ?? '—'}</span><strong>${driverName(p.driver_number)}</strong><small>${p.stop_duration ? `${p.stop_duration.toFixed(1)}s stop` : 'Pit lane'}<br>${time(p.date)}</small></div>`).join(''); }
 function renderOvertakes(items) { const passes = [...items].sort((a,b) => new Date(b.date)-new Date(a.date)).slice(0,8); $('overtake-count').textContent=`${items.length} PASS${items.length===1?'':'ES'}`; if (!passes.length) return empty('overtakes'); $('overtakes').innerHTML=passes.map(o=>`<div class="event"><span class="event-badge">P${o.position}</span><strong>${driverName(o.overtaking_driver_number)}</strong><span>passed ${driverName(o.overtaken_driver_number)}</span><small>${time(o.date)}</small></div>`).join(''); }
@@ -87,3 +120,47 @@ function renderLap(items) { const latest = latestBy(items, 'date_start'); $('rac
 
 $('refresh-button').addEventListener('click', () => loadSession(state.session.session_key));
 loadSessions().catch(error => { console.error(error); $('status-text').textContent='OFFLINE'; $('data-notice').textContent=`Could not connect to OpenF1: ${error.message}`; });
+setInterval(() => { if (state.session) loadSession(state.session.session_key); }, 30000);
+
+function startDemoRace() {
+  const route = $('race-route');
+  if (!route) return;
+  const cars = [
+    { element: $('car-redbull'), distance: 119, pace: 8.2, angle: 0 },
+    { element: $('car-mclaren'), distance: 96, pace: 8.5, angle: 0 },
+    { element: $('car-ferrari'), distance: 67, pace: 7.7, angle: 0 }
+  ];
+  const routeLength = route.getTotalLength();
+  let lastTime = performance.now();
+  let replayTime = 0;
+  function frame(now) {
+    const delta = Math.min((now - lastTime) / 1000, .08) * demoSpeed;
+    lastTime = now;
+    replayTime += delta;
+    const phase = replayTime % 22;
+    cars[0].pace = phase < 7 ? 8.5 : phase < 14 ? 7.7 : 7.9;
+    cars[1].pace = phase < 7 ? 8.0 : phase < 14 ? 9.1 : 8.4;
+    cars[2].pace = phase < 12 ? 7.4 : 9.0;
+    for (const car of cars) {
+      car.distance = (car.distance + car.pace * delta) % 1000;
+      const point = route.getPointAtLength((car.distance / 1000) * routeLength);
+      const ahead = route.getPointAtLength((((car.distance + 2) % 1000) / 1000) * routeLength);
+      const angle = Math.atan2(ahead.y - point.y, ahead.x - point.x) * 180 / Math.PI;
+      car.element.setAttribute('transform', `translate(${point.x} ${point.y}) rotate(${angle})`);
+    }
+    const lap = phase < 7 ? 13 : phase < 14 ? 15 : 16;
+    $('demo-lap').textContent = `LAP ${lap} / 18`;
+    if (phase < 7) $('demo-commentary').innerHTML = '<span><b class="redbull-dot"></b>Red Bull leads the field into Lap 13</span><span class="demo-speed">MCLAREN IS CLOSING</span>';
+    else if (phase < 14) $('demo-commentary').innerHTML = '<span><b class="mclaren-dot"></b>McLaren sweeps past Red Bull in the DRS zone for P1</span><span class="demo-speed">LAP 15 · 334 KM/H</span>';
+    else $('demo-commentary').innerHTML = '<span><b class="ferrari-dot"></b>Ferrari finds pace and attacks Red Bull for P2</span><span class="demo-speed">LAP 16 · +2.1 SEC</span>';
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+startDemoRace();
+document.querySelectorAll('.speed-button').forEach((button) => {
+  button.addEventListener('click', () => {
+    demoSpeed = Number(button.dataset.speed);
+    document.querySelectorAll('.speed-button').forEach((item) => item.classList.toggle('active', item === button));
+  });
+});

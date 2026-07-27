@@ -63,6 +63,34 @@
           </section>
         </aside>
 
+        <section class="panel wide-panel pulse-panel">
+          <div class="panel-heading">
+            <div><p class="eyebrow">RACE PULSE</p><h2>Gap, speed & passes</h2></div>
+            <p class="panel-note">NEON BAR = PROXIMITY TO LEADER</p>
+          </div>
+          <div class="demo-replay" aria-label="Demo position chart: McLaren takes the lead from Red Bull on lap 15, and Ferrari moves into second.">
+            <div class="demo-heading"><span class="demo-live-dot"></span><strong>DEMO RACE REPLAY</strong><span id="demo-lap">LAP 13 / 18</span><div class="speed-controls" aria-label="Replay speed"><button class="speed-button active" data-speed="1">1×</button><button class="speed-button" data-speed="2">2×</button><button class="speed-button" data-speed="3">3×</button></div></div>
+            <div class="track-stage">
+              <div class="track-label start-label">START / FINISH</div>
+              <div class="track-label drs-label">DRS ZONE</div>
+              <svg id="demo-track" viewBox="0 0 760 310" role="img" aria-label="Animated neon race circuit with McLaren, Red Bull, and Ferrari cars racing">
+                <defs><filter id="trackGlow"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+                <path class="track-shadow" d="M120 220 C65 161 110 69 250 73 C355 76 380 138 485 115 C596 90 704 120 680 202 C663 260 542 261 461 236 C361 205 309 269 195 250 C159 244 137 234 120 220Z"/>
+                <path id="race-route" class="race-route" pathLength="1000" d="M120 220 C65 161 110 69 250 73 C355 76 380 138 485 115 C596 90 704 120 680 202 C663 260 542 261 461 236 C361 205 309 269 195 250 C159 244 137 234 120 220Z"/>
+                <path class="track-centre" d="M120 220 C65 161 110 69 250 73 C355 76 380 138 485 115 C596 90 704 120 680 202 C663 260 542 261 461 236 C361 205 309 269 195 250 C159 244 137 234 120 220Z"/>
+                <line class="start-line" x1="115" y1="202" x2="145" y2="236"/>
+                <g id="car-redbull" class="demo-car redbull-car"><rect x="-10" y="-5" width="20" height="10" rx="3"/><circle cx="-5" cy="6" r="2.5"/><circle cx="5" cy="6" r="2.5"/></g>
+                <g id="car-mclaren" class="demo-car mclaren-car"><rect x="-10" y="-5" width="20" height="10" rx="3"/><circle cx="-5" cy="6" r="2.5"/><circle cx="5" cy="6" r="2.5"/></g>
+                <g id="car-ferrari" class="demo-car ferrari-car"><rect x="-10" y="-5" width="20" height="10" rx="3"/><circle cx="-5" cy="6" r="2.5"/><circle cx="5" cy="6" r="2.5"/></g>
+              </svg>
+              <div class="race-key"><span><b class="mclaren-dot"></b>MCLAREN</span><span><b class="redbull-dot"></b>RED BULL</span><span><b class="ferrari-dot"></b>FERRARI</span></div>
+            </div>
+            <div class="battle-feed" id="demo-commentary"><span><b class="redbull-dot"></b>Red Bull leads the field into Lap 13</span><span class="demo-speed">WATCH THE CARS MOVE</span></div>
+          </div>
+          <div class="pulse-legend"><span>DRIVER</span><span>RACE GAP</span><span>INTERVAL</span><span>TOP SPEED</span><span>PASSES</span></div>
+          <div id="race-pulse" class="race-pulse" aria-live="polite"></div>
+        </section>
+
         <section class="panel wide-panel">
           <div class="panel-heading"><div><p class="eyebrow">ON-TRACK ACTION</p><h2>Overtakes</h2></div><span class="pill" id="overtake-count">0 PASSES</span></div>
           <div id="overtakes" class="event-list two-columns"></div>
