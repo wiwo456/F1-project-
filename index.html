@@ -81,17 +81,15 @@
             <div class="track-stage">
               <div class="track-label start-label">START / FINISH</div>
               <div class="track-label drs-label">DRS ZONE</div>
-              <svg id="demo-track" viewBox="0 0 760 310" role="img" aria-label="Animated neon race circuit with McLaren, Red Bull, and Ferrari cars racing">
+              <svg id="demo-track" viewBox="0 0 470 490" role="img" aria-label="Animated Zeltweg Airfield circuit with cars racing and using the pit lane">
                 <defs><filter id="trackGlow"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-                <path class="track-shadow" d="M120 220 C65 161 110 69 250 73 C355 76 380 138 485 115 C596 90 704 120 680 202 C663 260 542 261 461 236 C361 205 309 269 195 250 C159 244 137 234 120 220Z"/>
-                <path id="race-route" class="race-route" pathLength="1000" d="M120 220 C65 161 110 69 250 73 C355 76 380 138 485 115 C596 90 704 120 680 202 C663 260 542 261 461 236 C361 205 309 269 195 250 C159 244 137 234 120 220Z"/>
-                <path class="track-centre" d="M120 220 C65 161 110 69 250 73 C355 76 380 138 485 115 C596 90 704 120 680 202 C663 260 542 261 461 236 C361 205 309 269 195 250 C159 244 137 234 120 220Z"/>
-                <line class="start-line" x1="115" y1="202" x2="145" y2="236"/>
-                <path class="pit-route" d="M120 220 C83 244 66 224 69 183 C71 148 84 119 111 96"/>
-                <path class="pit-centre" d="M120 220 C83 244 66 224 69 183 C71 148 84 119 111 96"/>
-                <rect class="pit-box" x="59" y="151" width="21" height="62" rx="3"/>
-                <text class="pit-label" x="73" y="196" transform="rotate(-90 73 196)">PIT</text>
-                <g id="demo-cars"></g>
+                <rect width="470" height="490" fill="#f7f8fa"/>
+                <image class="track-map" href="assets/tracks/ZeltwegAirfield.png" x="0" y="0" width="470" height="490"/>
+                <g transform="translate(7 66)">
+                  <path id="race-route" pathLength="1000" fill="none" stroke="transparent" d="M22 297.75 C11.58 309.17 15.42 313.33 19.25 317.50 C22.15 320.65 29.28 322.45 33.25 318.50 C117.20 235.04 201.28 151.42 283.25 69.75 C286.83 66.18 294.21 62.52 302.25 62.25 C309.93 62.00 316.58 63.58 322 69 C352.50 99.50 374.07 121.80 410.75 157.25 C412.67 159.10 414.67 161.08 417.50 161.25 C419.60 161.37 421.88 159.60 429 152.50 C435.88 145.64 438.43 140.66 438 135 C437.53 128.74 435.73 125.38 429 118.75 C387.69 78.06 381.58 71.55 357 48.50 C350.57 42.47 330.11 34.52 312.25 35.75 C294.38 36.98 283.83 40.08 267 54 Z"/>
+                  <path class="pit-route" d="M185.12 135.62 C179.58 143.17 177.29 152.46 174 160.25 C148.42 185.83 99.03 236.25 97.25 237 C89.63 240.20 81.50 240.58 74.50 245.50"/>
+                  <g id="demo-cars"></g>
+                </g>
               </svg>
               <div class="race-key"><span><b class="mclaren-dot"></b>MCLAREN</span><span><b class="redbull-dot"></b>RED BULL</span><span><b class="ferrari-dot"></b>FERRARI</span></div>
             </div>

@@ -8,7 +8,9 @@ const CAR_SPRITES = { McLaren:'mclaren', Mercedes:'mercedes', 'Red Bull Racing':
 let simulation = null;
 let demoCars = [];
 let demoRoute = null;
-const PIT_DRIVERS = new Set(['VER', 'LEC']);
+let pitEntryDistance = 0;
+let pitExitDistance = 0;
+const MAX_CARS_IN_PIT_LANE = 2;
 const $ = (id) => document.getElementById(id);
 if (new URLSearchParams(location.search).has('full')) document.body.classList.add('full-mode');
 
@@ -30,6 +32,18 @@ function empty(id) { $(id).replaceChildren($('empty-state').content.cloneNode(tr
 function escapeHtml(value = '') { const box = document.createElement('span'); box.textContent = value; return box.innerHTML; }
 function time(date) { return date ? new Intl.DateTimeFormat(undefined,{hour:'2-digit',minute:'2-digit'}).format(new Date(date)) : '—'; }
 function tyreColor(compound) { return ({ SOFT:'#ee324b', MEDIUM:'#ffd34e', HARD:'#edf0f2', INTERMEDIATE:'#44b978', WET:'#478bdb' })[compound] || '#59677b'; }
+function crossedTrackPoint(from, to, point) { return from <= to ? from < point && to >= point : from < point || to >= point; }
+function crossedTrackPointReverse(from, to, point) { return from >= to ? from > point && to <= point : from > point || to <= point; }
+function routeDistanceAtPoint(route, point) {
+  const length = route.getTotalLength();
+  let nearest = 0, closest = Infinity;
+  for (let step = 0; step <= 1200; step += 1) {
+    const candidate = route.getPointAtLength(length * step / 1200);
+    const distance = (candidate.x - point.x) ** 2 + (candidate.y - point.y) ** 2;
+    if (distance < closest) { closest = distance; nearest = step; }
+  }
+  return nearest / 1200 * 1000;
+}
 
 async function loadSessions() {
   const sessions = await get('sessions?year=2026');
@@ -123,7 +137,7 @@ function renderRacePulse(positions, intervals, laps, overtakes) {
   }).join('');
 }
 function driverName(number) { return state.drivers.get(number)?.name_acronym || `CAR ${number}`; }
-function renderPit(items) { const stops = [...items].sort((a,b) => new Date(b.date)-new Date(a.date)).slice(0,5); $('pit-count').textContent=`${items.length} STOP${items.length===1?'':'S'}`; if (!stops.length) return empty('pit-stops'); $('pit-stops').innerHTML=stops.map(p=>`<div class="event"><span class="event-badge">L${p.lap_number ?? '—'}</span><strong>${driverName(p.driver_number)}</strong><small>${p.stop_duration ? `${p.stop_duration.toFixed(1)}s stop` : 'Pit lane'}<br>${time(p.date)}</small></div>`).join(''); }
+function renderPit(items) { const stops = [...items].sort((a,b) => new Date(b.date)-new Date(a.date)).slice(0,5); $('pit-count').textContent=`${items.length} STOP${items.length===1?'':'S'}`; if (!stops.length) { $('pit-stops').innerHTML='<p class="empty-state">PIT LANE CLEAR</p>'; return; } $('pit-stops').innerHTML=stops.map(p=>`<div class="event"><span class="event-badge">L${p.lap_number ?? '—'}</span><strong>${driverName(p.driver_number)}</strong><small>${p.stop_duration ? `${p.stop_duration.toFixed(1)}s stop` : 'Pit lane'}<br>${time(p.date)}</small></div>`).join(''); }
 function renderOvertakes(items) { const passes = [...items].sort((a,b) => new Date(b.date)-new Date(a.date)).slice(0,8); $('overtake-count').textContent=`${items.length} PASS${items.length===1?'':'ES'}`; if (!passes.length) return empty('overtakes'); $('overtakes').innerHTML=passes.map(o=>`<div class="event"><span class="event-badge">P${o.position}</span><strong>${driverName(o.overtaking_driver_number)}</strong><span>passed ${driverName(o.overtaken_driver_number)}</span><small>${time(o.date)}</small></div>`).join(''); }
 function renderControl(items) { const messages = [...items].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,6); if (!messages.length) return empty('race-control'); $('race-control').innerHTML=messages.map(m=>`<div class="control"><span class="flag">${escapeHtml(m.flag || m.category || 'NOTICE')}</span><span>${escapeHtml(m.message || 'Race control update')}</span><time>${time(m.date)}</time></div>`).join(''); }
 function renderLap(items) { const latest = latestBy(items, 'date_start'); $('race-lap').textContent = latest?.lap_number ? `LAP ${latest.lap_number}` : '—'; }
@@ -141,12 +155,21 @@ function startDemoRace() {
     const element = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     element.setAttribute('class', 'demo-car');
     const sprite = CAR_SPRITES[driver.team_name];
-    element.innerHTML = `<image href="assets/cars/${sprite}-sprite.png" x="-24" y="-12" width="48" height="24" preserveAspectRatio="xMidYMid meet"/><text x="19" y="-10" fill="#${driver.team_colour}" style="font:700 8px Inter,sans-serif;paint-order:stroke;stroke:#080c13;stroke-width:2px">${driver.name_acronym}</text>`;
+    element.innerHTML = `<image href="assets/cars/${sprite}-sprite.png" x="-16" y="-8" width="32" height="16" preserveAspectRatio="xMidYMid meet"/><text x="14" y="-7" fill="#${driver.team_colour}" style="font:700 6px Inter,sans-serif;paint-order:stroke;stroke:#080c13;stroke-width:2px">${driver.name_acronym}</text>`;
     carLayer.append(element);
-    return { driver, element, distance: 190 - index * 10, totalDistance:190 - index * 10, pace:7.3 + Math.random() * .7, target:null, trackVelocity:0, pit:null, pitDue: driver.name_acronym === 'VER' ? 9 : driver.name_acronym === 'LEC' ? 18 : Infinity };
+    return { driver, element, distance: 190 - index * 10, totalDistance:190 - index * 10, pace:7.3 + Math.random() * .7, target:null, trackVelocity:0, pit:null, pitStops:0, plannedStops:1 + Math.floor(Math.random() * 3), pitRequested:false, nextPitLap:2 + Math.floor(Math.random() * 4), lastPitLap:-Infinity };
   });
   demoCars = cars;
   const routeLength = route.getTotalLength();
+  const pitPath = $('demo-track').querySelector('.pit-route');
+  pitEntryDistance = routeDistanceAtPoint(route, pitPath.getPointAtLength(pitPath.getTotalLength()));
+  pitExitDistance = routeDistanceAtPoint(route, pitPath.getPointAtLength(0));
+  const startLineDistance = routeDistanceAtPoint(route, { x:117, y:200 });
+  cars.forEach((car, index) => {
+    const gridDistance = (startLineDistance - 7 - index * 8 + 1000) % 1000;
+    car.distance = gridDistance;
+    car.totalDistance = gridDistance;
+  });
   let lastTime = performance.now();
   let replayTime = 0;
   function frame(now) {
@@ -158,38 +181,52 @@ function startDemoRace() {
     if (!simulation) { cars[0].pace += phase > 8 && phase < 14 ? 8 : 0; cars[4].pace += phase < 8 ? 7 : 2; cars[6].pace += phase > 13 ? 9 : 0; }
     for (const car of cars) {
       const target = simulation?.track.get(car.driver.driver_number);
-      const activePit = cars.some((item) => item.pit);
-      if (!car.pit && PIT_DRIVERS.has(car.driver.name_acronym) && replayTime >= car.pitDue && !activePit) {
-        car.pit = { started: replayTime, duration: 1.7 + Math.random() * .5 };
-        car.pitDue = replayTime + 42;
-        registerPitStop(car, car.pit.duration);
-      }
+      const raceLap = simulation?.lap || 1;
+      if (!car.pit && car.pitStops < car.plannedStops && raceLap >= car.nextPitLap && raceLap - car.lastPitLap >= 9) car.pitRequested = true;
       if (car.pit) {
         const elapsed = replayTime - car.pit.started;
         const entry = 1.15, total = entry + car.pit.duration + 1.15;
         let progress = elapsed < entry ? elapsed / entry * .5 : elapsed < entry + car.pit.duration ? .5 : .5 + ((elapsed - entry - car.pit.duration) / 1.15) * .5;
         progress = Math.max(0, Math.min(1, progress));
         const pitPath = $('demo-track').querySelector('.pit-route');
-        const pitPoint = pitPath.getPointAtLength(pitPath.getTotalLength() * progress);
-        const pitAhead = pitPath.getPointAtLength(Math.min(pitPath.getTotalLength(), pitPath.getTotalLength() * progress + 2));
+        const pitDistance = pitPath.getTotalLength() * (1 - progress);
+        const pitPoint = pitPath.getPointAtLength(pitDistance);
+        const pitAhead = pitPath.getPointAtLength(Math.max(0, pitDistance - 2));
         const pitAngle = Math.atan2(pitAhead.y - pitPoint.y, pitAhead.x - pitPoint.x) * 180 / Math.PI;
         car.element.setAttribute('transform', `translate(${pitPoint.x} ${pitPoint.y}) rotate(${pitAngle})`);
-        if (elapsed >= total) { car.pit = null; car.distance = 115; car.target = null; }
+        if (elapsed >= total) {
+          if (simulation && car.pit.stop) {
+            simulation.activePits = simulation.activePits.filter((stop) => stop !== car.pit.stop);
+            renderPit(simulation.activePits);
+          }
+          car.pit = null; car.distance = pitExitDistance; car.target = null; car.pitRequested = false;
+        }
         continue;
       }
-      if (target == null) car.distance = (car.distance + car.pace * delta) % 1000;
+      const previousDistance = car.distance;
+      if (target == null) car.distance = (car.distance - car.pace * delta + 1000) % 1000;
       else {
         if (car.target !== target) {
-          let forwardDistance = (target - car.distance + 1000) % 1000;
-          if (forwardDistance > 140) forwardDistance = 32;
+          let backwardDistance = (car.distance - target + 1000) % 1000;
+          if (backwardDistance > 140) backwardDistance = 32;
           car.target = target;
-          car.trackVelocity = Math.min(32, forwardDistance / (1.8 / demoSpeed));
+          car.trackVelocity = Math.min(32, backwardDistance / (1.8 / demoSpeed));
         }
-        car.distance = (car.distance + car.trackVelocity * delta + 1000) % 1000;
+        car.distance = (car.distance - car.trackVelocity * delta + 1000) % 1000;
       }
       car.totalDistance += (target == null ? car.pace : car.trackVelocity) * delta;
+      const passedPitEntry = crossedTrackPointReverse(previousDistance, car.distance, pitEntryDistance);
+      const carsInPit = cars.filter((item) => item.pit).length;
+      if (car.pitRequested && passedPitEntry && carsInPit < MAX_CARS_IN_PIT_LANE) {
+        car.pit = { started:replayTime, duration:1.6 + Math.random() * .7 };
+        car.pitStops += 1;
+        car.lastPitLap = raceLap;
+        car.nextPitLap = raceLap + 9 + Math.floor(Math.random() * 8);
+        car.distance = 0;
+        car.pit.stop = registerPitStop(car, car.pit.duration);
+      }
       const point = route.getPointAtLength((car.distance / 1000) * routeLength);
-      const ahead = route.getPointAtLength((((car.distance + 2) % 1000) / 1000) * routeLength);
+      const ahead = route.getPointAtLength((((car.distance - 2 + 1000) % 1000) / 1000) * routeLength);
       const angle = Math.atan2(ahead.y - point.y, ahead.x - point.x) * 180 / Math.PI;
       car.element.setAttribute('transform', `translate(${point.x} ${point.y}) rotate(${angle})`);
     }
@@ -204,13 +241,14 @@ function registerPitStop(car, duration) {
   const stop = { date:new Date().toISOString(), driver_number:driver.driver_number, lap_number:simulation?.lap || '—', stop_duration:+duration.toFixed(1) };
   if (simulation) {
     simulation.pits.unshift(stop);
+    simulation.activePits.unshift(stop);
     simulation.control.unshift({ date:stop.date, category:'Race Control', flag:'PIT', message:`${driver.name_acronym} ENTERS THE PIT LANE` });
-    renderPit(simulation.pits);
+    renderPit(simulation.activePits);
     renderControl(simulation.control);
   }
   $('demo-commentary').innerHTML = `<span><b style="background:#${driver.team_colour}"></b>${driver.name_acronym} is in the pit lane</span><span class="demo-speed">STOPPING FOR ${stop.stop_duration.toFixed(1)} SECONDS</span>`;
+  return stop;
 }
-startDemoRace();
 document.querySelectorAll('.speed-button').forEach((button) => {
   button.addEventListener('click', () => {
     demoSpeed = Number(button.dataset.speed);
@@ -221,7 +259,7 @@ document.querySelectorAll('.speed-button').forEach((button) => {
 function startSimulator() {
   if (simulation) return;
   state.drivers = new Map(SIM_GRID.map(driver => [driver.driver_number, driver]));
-  simulation = { lap: 1, order: [...demoCars].sort((a,b) => b.totalDistance - a.totalDistance).map(car => car.driver.driver_number), overtakes: [], pits: [], control: [], timer: null, track:new Map(SIM_GRID.map((driver,index) => [driver.driver_number, 210 - index * 13])) };
+  simulation = { lap: 1, trackPhase:0, order: [...demoCars].sort((a,b) => b.totalDistance - a.totalDistance).map(car => car.driver.driver_number), overtakes: [], pits: [], activePits: [], control: [], timer: null, track:new Map(SIM_GRID.map((driver,index) => [driver.driver_number, 210 - index * 13])) };
   $('simulator-button').classList.add('active');
   $('simulator-button').textContent = 'LIVE SIM';
   $('session-select').disabled = true;
@@ -229,20 +267,22 @@ function startSimulator() {
   $('status-text').textContent = 'SIMULATING';
   function tick() {
     const sim = simulation; if (!sim) return;
-    sim.lap = sim.lap === 57 ? 1 : sim.lap + 1;
     const previousOrder = [...sim.order];
     sim.order = [...demoCars].sort((a,b) => b.totalDistance - a.totalDistance).map(car => car.driver.driver_number);
+    const leader = demoCars.find((car) => car.driver.driver_number === sim.order[0]);
+    sim.lap = Math.min(57, Math.max(sim.lap, Math.floor((leader?.totalDistance || 0) / 1000) + 1));
+    sim.trackPhase = (sim.trackPhase - 55 + 1000) % 1000;
     const movedIndex = sim.order.findIndex((driver, index) => previousOrder.indexOf(driver) > index);
     const overtaker = movedIndex > 0 ? sim.order[movedIndex] : null;
     const overtaken = movedIndex > 0 ? previousOrder[movedIndex - 1] : null;
     if (overtaker) sim.overtakes.unshift({ date:new Date().toISOString(), overtaking_driver_number:overtaker, overtaken_driver_number:overtaken, position:movedIndex + 1 });
     if (overtaker) sim.control.unshift({ date:new Date().toISOString(), category:'Race Control', flag:'GREEN', message:`CAR ${state.drivers.get(overtaker).name_acronym} OVERTAKES ${state.drivers.get(overtaken).name_acronym} FOR P${movedIndex + 1}` });
     const positions = sim.order.map((driver_number, index) => ({ driver_number, position:index + 1, date:new Date().toISOString() }));
-    positions.forEach((item, index) => sim.track.set(item.driver_number, (210 + sim.lap * 55 - index * 13 + 1000) % 1000));
+    positions.forEach((item, index) => sim.track.set(item.driver_number, (210 + sim.trackPhase - index * 13 + 1000) % 1000));
     const intervals = positions.map((item, index) => ({ driver_number:item.driver_number, date:item.date, gap_to_leader:index ? +(index * 1.06 + Math.random() * .42).toFixed(3) : null, interval:index ? +(.35 + Math.random() * .85).toFixed(3) : null }));
     const laps = positions.map(item => ({ driver_number:item.driver_number, lap_number:sim.lap, date_start:item.date, st_speed:306 + Math.floor(Math.random() * 44) }));
     const stints = positions.map(item => ({ driver_number:item.driver_number, compound:['SOFT','MEDIUM','HARD'][Math.floor((sim.lap + item.position) / 9) % 3], tyre_age_at_start:Math.max(0, sim.lap - (sim.lap % 9)), lap_start:sim.lap - (sim.lap % 9), lap_end:sim.lap }));
-    renderTower(positions, stints, intervals); renderRacePulse(positions, intervals, laps, sim.overtakes); renderPit(sim.pits); renderOvertakes(sim.overtakes); renderControl(sim.control); renderLap(laps);
+    renderTower(positions, stints, intervals); renderRacePulse(positions, intervals, laps, sim.overtakes); renderPit(sim.activePits); renderOvertakes(sim.overtakes); renderControl(sim.control); renderLap(laps);
     const passing = state.drivers.get(overtaker || sim.order[0]); const passed = state.drivers.get(overtaken);
     $('demo-lap').textContent = `LAP ${sim.lap} / 57`;
     $('demo-commentary').innerHTML = overtaker ? `<span><b style="background:#${passing.team_colour}"></b>${passing.name_acronym} passes ${passed.name_acronym} for P${movedIndex + 1}</span><span class="demo-speed">${passing.team_name.toUpperCase()} · ${306 + Math.floor(Math.random() * 44)} KM/H</span>` : `<span><b style="background:#${passing.team_colour}"></b>${passing.name_acronym} leads the race</span><span class="demo-speed">FIELD RUNNING NORMALLY</span>`;
@@ -259,4 +299,5 @@ function stopSimulator() {
   loadSession(state.session.session_key);
 }
 $('simulator-button').addEventListener('click', () => simulation ? stopSimulator() : startSimulator());
+startDemoRace();
 setTimeout(startSimulator, 250);
