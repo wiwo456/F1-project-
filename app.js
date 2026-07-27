@@ -1,6 +1,12 @@
 const API = 'https://api.openf1.org/v1';
 const state = { sessions: [], session: null, drivers: new Map() };
 let demoSpeed = 1;
+const SIM_GRID = [
+  ['NOR','McLaren','FF8700'],['PIA','McLaren','FF8700'],['RUS','Mercedes','27F4D2'],['ANT','Mercedes','27F4D2'],['VER','Red Bull Racing','3671C6'],['HAD','Red Bull Racing','3671C6'],['LEC','Ferrari','FF2443'],['HAM','Ferrari','FF2443'],['ALB','Williams','1868DB'],['SAI','Williams','1868DB'],['LAW','Racing Bulls','7192FF'],['LIN','Racing Bulls','7192FF'],['ALO','Aston Martin','229971'],['STR','Aston Martin','229971'],['OCO','Haas','B6BABD'],['BEA','Haas','B6BABD'],['HUL','Audi','F24B22'],['BOR','Audi','F24B22'],['GAS','Alpine','E878C8'],['COL','Alpine','E878C8'],['BOT','Cadillac','C6C6C6'],['PER','Cadillac','C6C6C6']
+].map(([name, team, colour], index) => ({ driver_number:index + 1, name_acronym:name, team_name:team, team_colour:colour }));
+let simulation = null;
+let demoCars = [];
+let demoRoute = null;
 const $ = (id) => document.getElementById(id);
 
 async function get(endpoint) {
@@ -44,6 +50,7 @@ async function loadSession(sessionKey) {
     const [drivers, positions, stints, intervals, laps, weather, pit, overtakes, control] = await Promise.all([
       get(`drivers?session_key=${sessionKey}`), get(`position?session_key=${sessionKey}`), get(`stints?session_key=${sessionKey}`), get(`intervals?session_key=${sessionKey}`), get(`laps?session_key=${sessionKey}`), get(`weather?session_key=${sessionKey}`), get(`pit?session_key=${sessionKey}`), get(`overtakes?session_key=${sessionKey}`), get(`race_control?session_key=${sessionKey}`)
     ]);
+    if (simulation) return;
     state.drivers = new Map(drivers.map(driver => [driver.driver_number, driver]));
     renderTower(positions, stints, intervals);
     renderRacePulse(positions, intervals, laps, overtakes);
@@ -77,9 +84,9 @@ function renderTower(positions, stints, intervals) {
   }).join('');
 }
 function renderWeather(items) {
-  const weather = latestBy(items); if (!weather) return empty('weather-grid');
-  const values = [['AIR',`${weather.air_temperature?.toFixed(1) ?? '—'}°C`],['TRACK',`${weather.track_temperature?.toFixed(1) ?? '—'}°C`],['RAIN',weather.rainfall ? 'YES' : 'NO'],['WIND',`${weather.wind_speed?.toFixed(1) ?? '—'} km/h`]];
-  $('weather-grid').innerHTML = values.map(([label,value]) => `<div class="weather-item"><span>${label}</span><strong>${value}</strong></div>`).join('');
+  const weather = latestBy(items); if (!weather) { $('weather-summary').textContent = '—'; return; }
+  const condition = weather.rainfall ? 'WET' : 'DRY';
+  $('weather-summary').textContent = `${weather.track_temperature?.toFixed(0) ?? '—'}° · ${condition}`;
 }
 function renderRacePulse(positions, intervals, laps, overtakes) {
   const order = uniqueLatest(positions, 'driver_number').sort((a, b) => a.position - b.position);
@@ -118,18 +125,23 @@ function renderOvertakes(items) { const passes = [...items].sort((a,b) => new Da
 function renderControl(items) { const messages = [...items].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,6); if (!messages.length) return empty('race-control'); $('race-control').innerHTML=messages.map(m=>`<div class="control"><span class="flag">${escapeHtml(m.flag || m.category || 'NOTICE')}</span><span>${escapeHtml(m.message || 'Race control update')}</span><time>${time(m.date)}</time></div>`).join(''); }
 function renderLap(items) { const latest = latestBy(items, 'date_start'); $('race-lap').textContent = latest?.lap_number ? `LAP ${latest.lap_number}` : '—'; }
 
-$('refresh-button').addEventListener('click', () => loadSession(state.session.session_key));
+$('refresh-button').addEventListener('click', () => simulation ? startSimulator() : loadSession(state.session.session_key));
 loadSessions().catch(error => { console.error(error); $('status-text').textContent='OFFLINE'; $('data-notice').textContent=`Could not connect to OpenF1: ${error.message}`; });
-setInterval(() => { if (state.session) loadSession(state.session.session_key); }, 30000);
+setInterval(() => { if (state.session && !simulation) loadSession(state.session.session_key); }, 30000);
 
 function startDemoRace() {
   const route = $('race-route');
   if (!route) return;
-  const cars = [
-    { element: $('car-redbull'), distance: 119, pace: 8.2, angle: 0 },
-    { element: $('car-mclaren'), distance: 96, pace: 8.5, angle: 0 },
-    { element: $('car-ferrari'), distance: 67, pace: 7.7, angle: 0 }
-  ];
+  demoRoute = route;
+  const carLayer = $('demo-cars');
+  const cars = SIM_GRID.map((driver, index) => {
+    const element = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    element.setAttribute('class', 'demo-car');
+    element.innerHTML = `<rect x="-6" y="-3" width="12" height="6" rx="2" fill="#${driver.team_colour}" style="filter:drop-shadow(0 0 3px #${driver.team_colour})"/><circle cx="-3.5" cy="4" r="1.6"/><circle cx="3.5" cy="6" r="1.6"/><text x="8" y="-5" fill="#${driver.team_colour}" style="font:700 8px Inter,sans-serif;paint-order:stroke;stroke:#080c13;stroke-width:2px">${driver.name_acronym}</text>`;
+    carLayer.append(element);
+    return { driver, element, distance: 190 - index * 10, totalDistance:190 - index * 10, pace:7.3 + Math.random() * .7, target:null, trackVelocity:0 };
+  });
+  demoCars = cars;
   const routeLength = route.getTotalLength();
   let lastTime = performance.now();
   let replayTime = 0;
@@ -138,21 +150,27 @@ function startDemoRace() {
     lastTime = now;
     replayTime += delta;
     const phase = replayTime % 22;
-    cars[0].pace = phase < 7 ? 8.5 : phase < 14 ? 7.7 : 7.9;
-    cars[1].pace = phase < 7 ? 8.0 : phase < 14 ? 9.1 : 8.4;
-    cars[2].pace = phase < 12 ? 7.4 : 9.0;
+    cars.forEach((car, index) => { car.pace = 27 + ((index * 7 + Math.floor(phase)) % 9) / 2; });
+    if (!simulation) { cars[0].pace += phase > 8 && phase < 14 ? 8 : 0; cars[4].pace += phase < 8 ? 7 : 2; cars[6].pace += phase > 13 ? 9 : 0; }
     for (const car of cars) {
-      car.distance = (car.distance + car.pace * delta) % 1000;
+      const target = simulation?.track.get(car.driver.driver_number);
+      if (target == null) car.distance = (car.distance + car.pace * delta) % 1000;
+      else {
+        if (car.target !== target) {
+          let forwardDistance = (target - car.distance + 1000) % 1000;
+          if (forwardDistance > 140) forwardDistance = 32;
+          car.target = target;
+          car.trackVelocity = Math.min(32, forwardDistance / (1.8 / demoSpeed));
+        }
+        car.distance = (car.distance + car.trackVelocity * delta + 1000) % 1000;
+      }
+      car.totalDistance += (target == null ? car.pace : car.trackVelocity) * delta;
       const point = route.getPointAtLength((car.distance / 1000) * routeLength);
       const ahead = route.getPointAtLength((((car.distance + 2) % 1000) / 1000) * routeLength);
       const angle = Math.atan2(ahead.y - point.y, ahead.x - point.x) * 180 / Math.PI;
       car.element.setAttribute('transform', `translate(${point.x} ${point.y}) rotate(${angle})`);
     }
-    const lap = phase < 7 ? 13 : phase < 14 ? 15 : 16;
-    $('demo-lap').textContent = `LAP ${lap} / 18`;
-    if (phase < 7) $('demo-commentary').innerHTML = '<span><b class="redbull-dot"></b>Red Bull leads the field into Lap 13</span><span class="demo-speed">MCLAREN IS CLOSING</span>';
-    else if (phase < 14) $('demo-commentary').innerHTML = '<span><b class="mclaren-dot"></b>McLaren sweeps past Red Bull in the DRS zone for P1</span><span class="demo-speed">LAP 15 · 334 KM/H</span>';
-    else $('demo-commentary').innerHTML = '<span><b class="ferrari-dot"></b>Ferrari finds pace and attacks Red Bull for P2</span><span class="demo-speed">LAP 16 · +2.1 SEC</span>';
+    if (!simulation) { const lap = phase < 7 ? 13 : phase < 14 ? 15 : 16; $('demo-lap').textContent = `LAP ${lap} / 18`; }
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
@@ -164,3 +182,47 @@ document.querySelectorAll('.speed-button').forEach((button) => {
     document.querySelectorAll('.speed-button').forEach((item) => item.classList.toggle('active', item === button));
   });
 });
+
+function startSimulator() {
+  if (simulation) return;
+  state.drivers = new Map(SIM_GRID.map(driver => [driver.driver_number, driver]));
+  simulation = { lap: 1, order: [...demoCars].sort((a,b) => b.totalDistance - a.totalDistance).map(car => car.driver.driver_number), overtakes: [], pits: [], control: [], timer: null, track:new Map(SIM_GRID.map((driver,index) => [driver.driver_number, 210 - index * 13])) };
+  $('simulator-button').classList.add('active');
+  $('simulator-button').textContent = 'LIVE SIM';
+  $('session-select').disabled = true;
+  $('data-notice').textContent = 'Race Simulator mode — full 2026 grid. Switch it off to return to OpenF1 historical sessions.';
+  $('status-text').textContent = 'SIMULATING';
+  function tick() {
+    const sim = simulation; if (!sim) return;
+    sim.lap = sim.lap === 57 ? 1 : sim.lap + 1;
+    const previousOrder = [...sim.order];
+    sim.order = [...demoCars].sort((a,b) => b.totalDistance - a.totalDistance).map(car => car.driver.driver_number);
+    const movedIndex = sim.order.findIndex((driver, index) => previousOrder.indexOf(driver) > index);
+    const overtaker = movedIndex > 0 ? sim.order[movedIndex] : null;
+    const overtaken = movedIndex > 0 ? previousOrder[movedIndex - 1] : null;
+    if (overtaker) sim.overtakes.unshift({ date:new Date().toISOString(), overtaking_driver_number:overtaker, overtaken_driver_number:overtaken, position:movedIndex + 1 });
+    if (Math.random() < .32) { const driver = sim.order[8 + Math.floor(Math.random() * 14)]; sim.pits.unshift({ date:new Date().toISOString(), driver_number:driver, lap_number:sim.lap, stop_duration:1.9 + Math.random() * .8 }); }
+    if (overtaker) sim.control.unshift({ date:new Date().toISOString(), category:'Race Control', flag:'GREEN', message:`CAR ${state.drivers.get(overtaker).name_acronym} OVERTAKES ${state.drivers.get(overtaken).name_acronym} FOR P${movedIndex + 1}` });
+    const positions = sim.order.map((driver_number, index) => ({ driver_number, position:index + 1, date:new Date().toISOString() }));
+    positions.forEach((item, index) => sim.track.set(item.driver_number, (210 + sim.lap * 55 - index * 13 + 1000) % 1000));
+    const intervals = positions.map((item, index) => ({ driver_number:item.driver_number, date:item.date, gap_to_leader:index ? +(index * 1.06 + Math.random() * .42).toFixed(3) : null, interval:index ? +(.35 + Math.random() * .85).toFixed(3) : null }));
+    const laps = positions.map(item => ({ driver_number:item.driver_number, lap_number:sim.lap, date_start:item.date, st_speed:306 + Math.floor(Math.random() * 44) }));
+    const stints = positions.map(item => ({ driver_number:item.driver_number, compound:['SOFT','MEDIUM','HARD'][Math.floor((sim.lap + item.position) / 9) % 3], tyre_age_at_start:Math.max(0, sim.lap - (sim.lap % 9)), lap_start:sim.lap - (sim.lap % 9), lap_end:sim.lap }));
+    renderTower(positions, stints, intervals); renderRacePulse(positions, intervals, laps, sim.overtakes); renderPit(sim.pits); renderOvertakes(sim.overtakes); renderControl(sim.control); renderLap(laps);
+    const passing = state.drivers.get(overtaker || sim.order[0]); const passed = state.drivers.get(overtaken);
+    $('demo-lap').textContent = `LAP ${sim.lap} / 57`;
+    $('demo-commentary').innerHTML = overtaker ? `<span><b style="background:#${passing.team_colour}"></b>${passing.name_acronym} passes ${passed.name_acronym} for P${movedIndex + 1}</span><span class="demo-speed">${passing.team_name.toUpperCase()} · ${306 + Math.floor(Math.random() * 44)} KM/H</span>` : `<span><b style="background:#${passing.team_colour}"></b>${passing.name_acronym} leads the race</span><span class="demo-speed">FIELD RUNNING NORMALLY</span>`;
+    renderWeather([{ air_temperature:24.6, track_temperature:37.2, rainfall:0, wind_speed:2.8, date:new Date().toISOString() }]);
+    $('last-update').textContent = time(new Date());
+  }
+  tick(); simulation.timer = setInterval(tick, 1800);
+}
+function stopSimulator() {
+  if (!simulation) return;
+  clearInterval(simulation.timer); simulation = null;
+  $('simulator-button').classList.remove('active'); $('simulator-button').textContent = 'RACE SIM'; $('session-select').disabled = false;
+  $('data-notice').textContent = 'Historical mode — showing the latest session available from OpenF1. Live data can be connected later.';
+  loadSession(state.session.session_key);
+}
+$('simulator-button').addEventListener('click', () => simulation ? stopSimulator() : startSimulator());
+setTimeout(startSimulator, 250);

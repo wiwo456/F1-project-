@@ -10,6 +10,7 @@ button,select { font:inherit; }
 .brand-mark { background:var(--red); width:27px; height:27px; transform:skew(-12deg); display:grid; place-items:center; font-size:17px; }
 .session-picker { margin-left:auto; display:flex; align-items:center; gap:10px; color:var(--soft); font-size:11px; font-weight:700; letter-spacing:1px; text-transform:uppercase; }
 .session-picker select { max-width:290px; background:#151b24; color:var(--text); border:1px solid #303a49; padding:9px 32px 9px 11px; border-radius:5px; font-size:12px; }
+.simulator-button { border:1px solid #394454; border-radius:4px; padding:8px 10px; color:#b9c4d1; background:transparent; font-size:10px; letter-spacing:.8px; font-weight:700; cursor:pointer; }.simulator-button:hover,.simulator-button.active { color:#fff; background:#401823; border-color:var(--red); box-shadow:0 0 12px #5e1c2b; }
 .live-status { display:flex; align-items:center; gap:8px; font-size:11px; letter-spacing:1.1px; font-weight:700; color:var(--soft); }
 .status-dot { width:8px; height:8px; background:var(--yellow); border-radius:50%; box-shadow:0 0 12px var(--yellow); }
 .hero { padding:44px 0 27px; display:flex; justify-content:space-between; align-items:end; }
@@ -20,7 +21,7 @@ h1,h2 { font-family:'Barlow Condensed',sans-serif; text-transform:uppercase; mar
 .notice { border:1px solid #49353a; background:#21171b; padding:12px 15px; color:#d5b9bf; border-radius:5px; font-size:12px; margin-bottom:18px; }
 .dashboard-grid { display:grid; grid-template-columns:minmax(540px,1.65fr) minmax(310px,.85fr); gap:18px; }
 .panel { background:linear-gradient(145deg,#121720,#0d1118); border:1px solid var(--line); border-radius:7px; overflow:hidden; }
-.timing-panel { grid-row:span 2; } .wide-panel { grid-column:1/-1; }
+.timing-panel { grid-row:span 2; } .wide-panel { grid-column:1/-1; } .pulse-panel { order:-1; }
 .right-column { display:grid; gap:18px; }
 .panel-heading { min-height:76px; padding:18px 20px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); }
 .refresh-button,.pill { border:1px solid #394454; border-radius:4px; color:#b9c4d1; background:transparent; padding:6px 9px; font-size:10px; letter-spacing:.7px; font-weight:700; } .refresh-button { cursor:pointer; } .refresh-button:hover { color:var(--text); border-color:var(--red); }
