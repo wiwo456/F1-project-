@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#07090d" />
+    <title>Racewall — F1 Dashboard</title>
+    <link rel="preconnect" href="https://api.openf1.org" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="Racewall home">
+          <span class="brand-mark">R</span>
+          <span>RACEWALL</span>
+        </a>
+        <div class="session-picker">
+          <label for="session-select">Session</label>
+          <select id="session-select" aria-label="Choose an F1 session"></select>
+        </div>
+        <div class="live-status" id="live-status">
+          <span class="status-dot"></span>
+          <span id="status-text">CONNECTING</span>
+        </div>
+      </header>
+
+      <section class="hero" aria-labelledby="meeting-name">
+        <div>
+          <p class="eyebrow" id="session-name">LOADING SESSION</p>
+          <h1 id="meeting-name">Preparing the timing wall</h1>
+          <p class="location" id="meeting-location">OpenF1 historical data</p>
+        </div>
+        <div class="hero-stats">
+          <div><span>RACE LAP</span><strong id="race-lap">—</strong></div>
+          <div><span>LAST UPDATE</span><strong id="last-update">—</strong></div>
+        </div>
+      </section>
+
+      <section class="notice" id="data-notice">
+        Historical mode — showing the latest session available from OpenF1. Live data can be connected later.
+      </section>
+
+      <section class="dashboard-grid">
+        <section class="panel timing-panel">
+          <div class="panel-heading">
+            <div><p class="eyebrow">LIVE ORDER</p><h2>Timing tower</h2></div>
+            <button class="refresh-button" id="refresh-button">Refresh</button>
+          </div>
+          <div class="tower-columns"><span>POS</span><span>DRIVER</span><span>TYRE</span><span>GAP</span></div>
+          <div id="timing-tower" class="timing-tower" aria-live="polite"></div>
+        </section>
+
+        <aside class="right-column">
+          <section class="panel weather-panel">
+            <div class="panel-heading"><div><p class="eyebrow">TRACK CONDITIONS</p><h2>Weather</h2></div><span class="weather-icon">☀</span></div>
+            <div class="weather-grid" id="weather-grid"></div>
+          </section>
+
+          <section class="panel pit-panel">
+            <div class="panel-heading"><div><p class="eyebrow">PIT LANE</p><h2>Latest stops</h2></div><span class="pill" id="pit-count">0 STOPS</span></div>
+            <div id="pit-stops" class="event-list"></div>
+          </section>
+        </aside>
+
+        <section class="panel wide-panel">
+          <div class="panel-heading"><div><p class="eyebrow">ON-TRACK ACTION</p><h2>Overtakes</h2></div><span class="pill" id="overtake-count">0 PASSES</span></div>
+          <div id="overtakes" class="event-list two-columns"></div>
+        </section>
+
+        <section class="panel wide-panel">
+          <div class="panel-heading"><div><p class="eyebrow">RACE CONTROL</p><h2>Latest messages</h2></div></div>
+          <div id="race-control" class="control-list"></div>
+        </section>
+      </section>
+    </main>
+    <template id="empty-state"><p class="empty-state">No data is available for this session yet.</p></template>
+    <script src="app.js"></script>
+  </body>
+</html>
