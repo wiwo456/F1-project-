@@ -310,7 +310,7 @@ document.querySelectorAll('.speed-button').forEach((button) => {
 function startSimulator() {
   if (simulation) return;
   state.drivers = new Map(SIM_GRID.map(driver => [driver.driver_number, driver]));
-  simulation = { lap: 1, trackPhase:0, order: [...demoCars].sort((a,b) => b.totalDistance - a.totalDistance).map(car => car.driver.driver_number), overtakes: [], pits: [], activePits: [], control: [], timer: null, track:new Map(SIM_GRID.map((driver,index) => [driver.driver_number, 210 + index * 13])) };
+  simulation = { lap: 1, trackPhase:0, tickCount:0, order: [...demoCars].sort((a,b) => b.totalDistance - a.totalDistance).map(car => car.driver.driver_number), overtakes: [], pits: [], activePits: [], control: [], timer: null, track:new Map(SIM_GRID.map((driver,index) => [driver.driver_number, 210 + index * 13])) };
   simulation.gridPositions = new Map(simulation.order.map((driverNumber, index) => [driverNumber, index + 1]));
   $('simulator-button').classList.add('active');
   $('simulator-button').textContent = 'LIVE SIM';
@@ -319,14 +319,29 @@ function startSimulator() {
   $('status-text').textContent = 'SIMULATING';
   function tick() {
     const sim = simulation; if (!sim) return;
+    sim.tickCount += 1;
     const previousOrder = [...sim.order];
     sim.order = [...demoCars].sort((a,b) => b.totalDistance - a.totalDistance).map(car => car.driver.driver_number);
+    let movedIndex = sim.order.findIndex((driver, index) => previousOrder.indexOf(driver) > index);
+    let overtaker = movedIndex > 0 ? sim.order[movedIndex] : null;
+    let overtaken = movedIndex > 0 ? previousOrder[movedIndex] : null;
+    // Ensure a newly started demo shows an on-track event promptly, rather than
+    // leaving the ticker on the leader message for its opening laps.
+    if (!overtaker && sim.overtakes.length === 0 && sim.tickCount === 3) {
+      const targetIndex = Math.min(5, sim.order.length - 1);
+      const challenger = demoCars.find(car => car.driver.driver_number === sim.order[targetIndex]);
+      const carAhead = demoCars.find(car => car.driver.driver_number === sim.order[targetIndex - 1]);
+      if (challenger && carAhead) {
+        challenger.totalDistance = carAhead.totalDistance + 0.01;
+        sim.order = [...demoCars].sort((a,b) => b.totalDistance - a.totalDistance).map(car => car.driver.driver_number);
+        movedIndex = sim.order.indexOf(challenger.driver.driver_number);
+        overtaker = challenger.driver.driver_number;
+        overtaken = previousOrder[movedIndex];
+      }
+    }
     const leader = demoCars.find((car) => car.driver.driver_number === sim.order[0]);
     sim.lap = Math.min(57, Math.max(sim.lap, Math.floor((leader?.totalDistance || 0) / 1000) + 1));
     sim.trackPhase = (sim.trackPhase - 55 + 1000) % 1000;
-    const movedIndex = sim.order.findIndex((driver, index) => previousOrder.indexOf(driver) > index);
-    const overtaker = movedIndex > 0 ? sim.order[movedIndex] : null;
-    const overtaken = movedIndex > 0 ? previousOrder[movedIndex - 1] : null;
     if (overtaker) sim.overtakes.unshift({ date:new Date().toISOString(), overtaking_driver_number:overtaker, overtaken_driver_number:overtaken, position:movedIndex + 1 });
     if (overtaker) sim.control.unshift({ date:new Date().toISOString(), category:'Race Control', flag:'GREEN', message:`CAR ${state.drivers.get(overtaker).name_acronym} OVERTAKES ${state.drivers.get(overtaken).name_acronym} FOR P${movedIndex + 1}` });
     const positions = sim.order.map((driver_number, index) => ({ driver_number, position:index + 1, date:new Date().toISOString() }));
