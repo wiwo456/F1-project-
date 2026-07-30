@@ -95,7 +95,7 @@
             </div>
             <div class="battle-feed" id="demo-commentary"><span><b class="redbull-dot"></b>Red Bull leads the field into Lap 13</span><span class="demo-speed">WATCH THE CARS MOVE</span></div>
           </div>
-          <div class="pulse-legend"><span>DRIVER</span><span>RACE GAP</span><span>INTERVAL</span><span>TOP SPEED</span><span>PASSES</span></div>
+          <div class="pulse-legend"><span>LIVE TIMING</span><span>TOP 8 · LIVE ORDER</span></div>
           <div id="race-pulse" class="race-pulse" aria-live="polite"></div>
         </section>
 
@@ -105,6 +105,21 @@
         </section>
       </section>
     </main>
+    <div class="driver-modal" id="driver-modal" hidden>
+      <div class="driver-modal-backdrop" data-close-driver-modal></div>
+      <section class="driver-card" role="dialog" aria-modal="true" aria-labelledby="driver-modal-name">
+        <button class="driver-modal-close" type="button" aria-label="Close driver details" data-close-driver-modal>×</button>
+        <div class="driver-car-side" id="driver-car-side"></div>
+        <div class="driver-info-side">
+          <p class="eyebrow">DRIVER TELEMETRY <span class="live-tag">CURRENT</span></p>
+          <h2 id="driver-modal-name">DRIVER</h2>
+          <p class="driver-modal-team" id="driver-modal-team">TEAM</p>
+          <div class="driver-position-summary"><span id="driver-modal-position">P—</span><small id="driver-modal-movement">GRID P—</small></div>
+          <div class="driver-spec-grid" id="driver-modal-specs"></div>
+          <div class="driver-modal-footer" id="driver-modal-footer">Session information updates with the timing feed.</div>
+        </div>
+      </section>
+    </div>
     <template id="empty-state"><p class="empty-state">No data is available for this session yet.</p></template>
     <script src="app.js"></script>
   </body>
